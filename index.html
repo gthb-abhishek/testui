@@ -41,11 +41,7 @@
       }
 
       .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: center;
-        margin-bottom: 20px;
+        display: none;
       }
 
       .note {
@@ -54,27 +50,6 @@
         margin: 0 0 12px;
         line-height: 1.5;
       }
-
-      input[type="url"] {
-        flex: 1 1 420px;
-        min-width: 260px;
-        padding: 12px 14px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        font-size: 15px;
-      }
-
-      button {
-        background: var(--primary);
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        padding: 12px 18px;
-        font-size: 15px;
-        cursor: pointer;
-      }
-
-      button:hover { opacity: 0.95; }
 
       .status {
         margin: 8px 0 18px;
@@ -158,18 +133,8 @@
   <body>
     <div class="container">
       <div class="panel">
-        <div class="toolbar">
-          <input
-            id="jsonUrl"
-            type="url"
-            value="./approved-pubsec-services.json"
-            placeholder="./approved-pubsec-services.json"
-          />
-          <button id="loadBtn">Load JSON</button>
-        </div>
-
         <p class="note">
-          When the page and JSON file are in the same repo, use a same-repo relative path such as ./approved-pubsec-services.json.
+          Loading data from the same repo: ./test.json
         </p>
 
         <div id="status" class="status">Loading...</div>
@@ -206,8 +171,7 @@
     </div>
 
     <script>
-      const jsonUrlInput = document.getElementById('jsonUrl');
-      const loadBtn = document.getElementById('loadBtn');
+      const JSON_URL = './test.json';
       const statusEl = document.getElementById('status');
       const tableBody = document.getElementById('serviceTableBody');
       const totalCountEl = document.getElementById('totalCount');
@@ -217,17 +181,6 @@
       function setStatus(message, isError = false) {
         statusEl.textContent = message;
         statusEl.style.color = isError ? '#b91c1c' : '#6b7280';
-      }
-
-      function resolveJsonUrl(inputUrl) {
-        const url = inputUrl.trim();
-        if (!url) return null;
-
-        if (/^(https?:)?\/\//i.test(url)) {
-          return url;
-        }
-
-        return new URL(url, window.location.href).href;
       }
 
       function renderServices(data) {
@@ -272,18 +225,10 @@
       }
 
       async function loadJsonFromGithub() {
-        const inputUrl = jsonUrlInput.value.trim();
-        const resolvedUrl = resolveJsonUrl(inputUrl);
-
-        if (!resolvedUrl) {
-          setStatus('Please enter a path or URL to the JSON file.', true);
-          return;
-        }
-
         try {
           setStatus('Fetching JSON from the same repo...');
 
-          const response = await fetch(resolvedUrl, {
+          const response = await fetch(JSON_URL, {
             method: 'GET',
             cache: 'no-store',
             credentials: 'same-origin'
@@ -302,14 +247,6 @@
           setStatus('Failed to load the JSON file from this repo.', true);
         }
       }
-
-      loadBtn.addEventListener('click', loadJsonFromGithub);
-
-      jsonUrlInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          loadJsonFromGithub();
-        }
-      });
 
       loadJsonFromGithub();
     </script>
