@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Approved Services</title>
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --border: #dfe6ee;
+        --primary: #0f6cbd;
+        --success: #15803d;
+        --warning: #b45309;
+        --danger: #b91c1c;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        padding: 20px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 0 0 12px;
+        line-height: 1.5;
+      }
+
+      input[type="url"] {
+        flex: 1 1 420px;
+        min-width: 260px;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 15px;
+      }
+
+      button {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 18px;
+        font-size: 15px;
+        cursor: pointer;
+      }
+
+      button:hover { opacity: 0.95; }
+
+      .status {
+        margin: 8px 0 18px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .summary {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+
+      .summary-box {
+        flex: 1 1 180px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 16px;
+      }
+
+      .summary-box .label {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .summary-box .value {
+        margin-top: 6px;
+        font-size: 24px;
+        font-weight: bold;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 10px;
+      }
+
+      th, td {
+        text-align: left;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      th {
+        background: #f8fafc;
+        color: var(--text);
+      }
+
+      .state {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: capitalize;
+      }
+
+      .state.approved { background: #dcfce7; color: var(--success); }
+      .state.pending { background: #fef3c7; color: var(--warning); }
+      .state.rejected { background: #fee2e2; color: var(--danger); }
+
+      .empty {
+        padding: 28px;
+        text-align: center;
+        color: var(--muted);
+      }
+
+      @media (max-width: 700px) {
+        .container { padding: 12px; }
+        th, td { padding: 10px 8px; }
+        table { display: block; overflow-x: auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="panel">
+        <div class="toolbar">
+          <input
+            id="jsonUrl"
+            type="url"
+            value="./approved-pubsec-services.json"
+            placeholder="./approved-pubsec-services.json"
+          />
+          <button id="loadBtn">Load JSON</button>
+        </div>
+
+        <p class="note">
+          When the page and JSON file are in the same repo, use a same-repo relative path such as ./approved-pubsec-services.json.
+        </p>
+
+        <div id="status" class="status">Loading...</div>
+
+        <div class="summary">
+          <div class="summary-box">
+            <div class="label">Total services</div>
+            <div id="totalCount" class="value">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="label">Approved</div>
+            <div id="approvedCount" class="value">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="label">Pending</div>
+            <div id="pendingCount" class="value">0</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th>Service Name</th>
+              <th>State</th>
+              <th>Updated On</th>
+              <th>Updated By</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="serviceTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const jsonUrlInput = document.getElementById('jsonUrl');
+      const loadBtn = document.getElementById('loadBtn');
+      const statusEl = document.getElementById('status');
+      const tableBody = document.getElementById('serviceTableBody');
+      const totalCountEl = document.getElementById('totalCount');
+      const approvedCountEl = document.getElementById('approvedCount');
+      const pendingCountEl = document.getElementById('pendingCount');
+
+      function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.style.color = isError ? '#b91c1c' : '#6b7280';
+      }
+
+      function resolveJsonUrl(inputUrl) {
+        const url = inputUrl.trim();
+        if (!url) return null;
+
+        if (/^(https?:)?\/\//i.test(url)) {
+          return url;
+        }
+
+        return new URL(url, window.location.href).href;
+      }
+
+      function renderServices(data) {
+        const services = data && data.services ? data.services : {};
+        const entries = Object.entries(services);
+
+        tableBody.innerHTML = '';
+
+        if (!entries.length) {
+          tableBody.innerHTML = '<tr><td colspan="6" class="empty">No service entries found.</td></tr>';
+          totalCountEl.textContent = '0';
+          approvedCountEl.textContent = '0';
+          pendingCountEl.textContent = '0';
+          return;
+        }
+
+        let approved = 0;
+        let pending = 0;
+
+        entries.forEach(([key, item]) => {
+          const service = item || {};
+          const state = (service.state || 'unknown').toLowerCase();
+
+          if (state === 'approved') approved++;
+          if (state === 'pending') pending++;
+
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${service.application_name || key}</td>
+            <td>${service.service_name || '-'}</td>
+            <td><span class="state ${state}">${service.state || 'unknown'}</span></td>
+            <td>${service.updated_on || '-'}</td>
+            <td>${service.updated_by || '-'}</td>
+            <td>${service.notes || '-'}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+
+        totalCountEl.textContent = entries.length;
+        approvedCountEl.textContent = approved;
+        pendingCountEl.textContent = pending;
+      }
+
+      async function loadJsonFromGithub() {
+        const inputUrl = jsonUrlInput.value.trim();
+        const resolvedUrl = resolveJsonUrl(inputUrl);
+
+        if (!resolvedUrl) {
+          setStatus('Please enter a path or URL to the JSON file.', true);
+          return;
+        }
+
+        try {
+          setStatus('Fetching JSON from the same repo...');
+
+          const response = await fetch(resolvedUrl, {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'same-origin'
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          renderServices(data);
+          setStatus(`Loaded ${Object.keys(data.services || {}).length} service entries.`);
+        } catch (error) {
+          console.error(error);
+          tableBody.innerHTML = '<tr><td colspan="6" class="empty">Unable to load the JSON file. Make sure it is in the same repo and the path is correct.</td></tr>';
+          setStatus('Failed to load the JSON file from this repo.', true);
+        }
+      }
+
+      loadBtn.addEventListener('click', loadJsonFromGithub);
+
+      jsonUrlInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          loadJsonFromGithub();
+        }
+      });
+
+      loadJsonFromGithub();
+    </script>
+  </body>
+</html>
