@@ -116,6 +116,9 @@
       .state.approved { background: #dcfce7; color: var(--success); }
       .state.pending { background: #fef3c7; color: var(--warning); }
       .state.rejected { background: #fee2e2; color: var(--danger); }
+      .state.blocked { background: #f3f4f6; color: #374151; }
+      .state.internal { background: #e0f2fe; color: #075985; }
+      .state.suspended { background: #fce7f3; color: #9d174d; }
 
       .empty {
         padding: 28px;
@@ -134,7 +137,7 @@
     <div class="container">
       <div class="panel">
         <p class="note">
-          Loading data from the same repo: ./test.json
+          Loading service data from the published JSON source.
         </p>
 
         <div id="status" class="status">Loading...</div>
@@ -171,7 +174,8 @@
     </div>
 
     <script>
-      const JSON_URL = './test.json';
+      const JSON_URL = 'https://gthb-abhishek.github.io/testui/test.json';
+      const FALLBACK_JSON_URL = './approved-pubsec-services.json';
       const statusEl = document.getElementById('status');
       const tableBody = document.getElementById('serviceTableBody');
       const totalCountEl = document.getElementById('totalCount');
@@ -225,13 +229,18 @@
       }
 
       async function loadJsonFromGithub() {
-        try {
-          setStatus('Fetching JSON from the same repo...');
+        if (window.location.protocol === 'file:') {
+          tableBody.innerHTML = '<tr><td colspan="6" class="empty">Open this page through a local web server or GitHub Pages. Browsers block fetch() for file:// pages.</td></tr>';
+          setStatus('The page must be served over HTTP/HTTPS to load the JSON file.', true);
+          return;
+        }
 
+        try {
+          setStatus('Fetching published JSON...');
           const response = await fetch(JSON_URL, {
             method: 'GET',
             cache: 'no-store',
-            credentials: 'same-origin'
+            credentials: 'omit'
           });
 
           if (!response.ok) {
@@ -242,9 +251,26 @@
           renderServices(data);
           setStatus(`Loaded ${Object.keys(data.services || {}).length} service entries.`);
         } catch (error) {
-          console.error(error);
-          tableBody.innerHTML = '<tr><td colspan="6" class="empty">Unable to load the JSON file. Make sure it is in the same repo and the path is correct.</td></tr>';
-          setStatus('Failed to load the JSON file from this repo.', true);
+          console.warn('Primary JSON URL failed, trying fallback repo file:', error);
+          try {
+            const fallbackResponse = await fetch(FALLBACK_JSON_URL, {
+              method: 'GET',
+              cache: 'no-store',
+              credentials: 'same-origin'
+            });
+
+            if (!fallbackResponse.ok) {
+              throw new Error(`Fallback HTTP ${fallbackResponse.status}: ${fallbackResponse.statusText}`);
+            }
+
+            const fallbackData = await fallbackResponse.json();
+            renderServices(fallbackData);
+            setStatus(`Loaded ${Object.keys(fallbackData.services || {}).length} service entries from the repo fallback.`);
+          } catch (fallbackError) {
+            console.error(fallbackError);
+            tableBody.innerHTML = '<tr><td colspan="6" class="empty">Unable to load the JSON file from the published URL or the repo fallback.</td></tr>';
+            setStatus('Failed to load the JSON file from this repo.', true);
+          }
         }
       }
 
